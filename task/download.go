@@ -2,6 +2,9 @@ package task
 
 import (
 	"context"
+	"crypto/tls"
+
+	// "crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -13,6 +16,8 @@ import (
 	"CloudflareSpeedTest/utils"
 
 	"github.com/VividCortex/ewma"
+	utls "github.com/refraction-networking/utls"
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -106,11 +111,36 @@ func getDialContext(ip *net.IPAddr) func(ctx context.Context, network, address s
 	}
 }
 
+type UtlsDialer struct {
+	ip *net.IPAddr
+}
+
+func (dialer *UtlsDialer) DialTLSContext(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+	d := net.Dialer{}
+	tcpConn, err := d.DialContext(ctx, network, fmt.Sprintf("%s:443", dialer.ip.String()))
+	if err != nil {
+		return nil, err
+	}
+	config := utls.Config{
+		ServerName: cfg.ServerName,
+	}
+	utlsConn := utls.UClient(tcpConn, &config, utls.HelloChrome_102)
+	if err = utlsConn.HandshakeContext(ctx); err != nil {
+		utlsConn.Close()
+		return nil, err
+	}
+
+	return utlsConn, nil
+}
+
 // return download Speed
 func downloadHandler(ip *net.IPAddr) float64 {
+	dialer := UtlsDialer{ip: ip}
 	client := &http.Client{
-		Transport: &http.Transport{DialContext: getDialContext(ip)},
-		Timeout:   Timeout,
+		Transport: &http2.Transport{
+			DialTLSContext: dialer.DialTLSContext,
+		},
+		Timeout: Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) > 10 { // 限制最多重定向 10 次
 				return http.ErrUseLastResponse
