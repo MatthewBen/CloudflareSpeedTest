@@ -3,8 +3,6 @@ package task
 import (
 	"context"
 	"crypto/tls"
-
-	// "crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -112,12 +110,12 @@ func getDialContext(ip *net.IPAddr) func(ctx context.Context, network, address s
 }
 
 type UtlsDialer struct {
-	ip *net.IPAddr
+	IP *net.IPAddr
 }
 
 func (dialer *UtlsDialer) DialTLSContext(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 	d := net.Dialer{}
-	tcpConn, err := d.DialContext(ctx, network, fmt.Sprintf("%s:443", dialer.ip.String()))
+	tcpConn, err := d.DialContext(ctx, network, fmt.Sprintf("%s:443", dialer.IP.String()))
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +133,7 @@ func (dialer *UtlsDialer) DialTLSContext(ctx context.Context, network, addr stri
 
 // return download Speed
 func downloadHandler(ip *net.IPAddr) float64 {
-	dialer := UtlsDialer{ip: ip}
+	dialer := UtlsDialer{IP: ip}
 	client := &http.Client{
 		Transport: &http2.Transport{
 			DialTLSContext: dialer.DialTLSContext,
